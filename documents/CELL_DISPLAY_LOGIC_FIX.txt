@@ -1,0 +1,200 @@
+CELL DISPLAY LOGIC - COMPLETE ANALYSIS
+=======================================
+
+PROBLEM IDENTIFIED:
+-------------------
+
+The cell has multiple display flags that interact:
+  - is_error (error flag - should always track correctness)
+  - is_bold (for selected number highlighting)
+  - is_candidate (for candidate shading)
+  - is_singleton (for naked singles)
+
+CURRENT BROKEN BEHAVIOR:
+-------------------------
+
+In sudoku_cell.py paintEvent() line 173:
+```python
+if self.is_error:
+    painter.fillRect(rect, QColor(*Colors.BG_ERROR))  # RED!
+```
+
+This ALWAYS shows red when is_error=True, even if show_errors is OFF!
+
+
+THE ISSUE:
+----------
+
+1. update_error_flags() sets cell.is_error = True/False (GOOD - tracking)
+2. paintEvent() checks if self.is_error and shows RED (BAD - always visible)
+3. update_error_display() calls set_highlight(error=False) to "hide" (DOESN'T WORK)
+
+Why it doesn't work:
+  - set_highlight(error=False) sets is_error=False
+  - But update_error_flags() immediately sets it back to True
+  - paintEvent() sees is_error=True → shows RED
+
+
+TWO SOLUTIONS:
+==============
+
+OPTION 1: SEPARATE FLAG AND DISPLAY (Recommended)
+--------------------------------------------------
+
+Keep error tracking separate from error display:
+
+Cell has TWO flags:
+  - error_flag (internal, always tracks correctness)
+  - show_error_display (controls visibility)
+
+paintEvent():
+```python
+if self.show_error_display:  # Only if we should SHOW it
+    painter.fillRect(rect, QColor(*Colors.BG_ERROR))
+```
+
+update_error_flags():
+```python
+cell.error_flag = is_wrong  # Always track
+# Don't touch show_error_display
+```
+
+update_error_display():
+```python
+if show_errors:
+    cell.show_error_display = cell.error_flag  # Copy flag to display
+else:
+    cell.show_error_display = False  # Hide
+```
+
+Benefits:
+  ✓ Clear separation of tracking vs display
+  ✓ Flags always accurate
+  ✓ Display controlled independently
+  ✓ Easy to understand
+
+
+OPTION 2: CONDITIONAL DISPLAY (Simpler code)
+---------------------------------------------
+
+Don't use is_error flag in paintEvent at all!
+Only use it for tracking.
+
+Cell has:
+  - is_error (tracking only, not used in paint)
+  - error_display_on (separate display flag)
+
+paintEvent():
+```python
+if self.error_display_on:
+    painter.fillRect(rect, QColor(*Colors.BG_ERROR))
+```
+
+update_error_flags():
+```python
+cell.is_error = is_wrong  # Track only
+# Don't set error_display_on
+```
+
+update_error_display():
+```python
+for cell in cells:
+    if show_errors:
+        cell.error_display_on = cell.is_error
+    else:
+        cell.error_display_on = False
+    cell.update()
+```
+
+Benefits:
+  ✓ Even clearer: is_error = tracking, error_display_on = display
+  ✓ No confusion
+  ✓ Simple logic
+
+
+RECOMMENDED IMPLEMENTATION (Option 2):
+======================================
+
+1. Add to SudokuCell.__init__():
+```python
+self.error_display_on = False  # Controls red shading
+```
+
+2. Change paintEvent() line 173:
+```python
+if self.error_display_on:  # Not is_error!
+    painter.fillRect(rect, QColor(*Colors.BG_ERROR))
+```
+
+3. Change update_error_flags() in UI:
+```python
+def update_error_flags(self):
+    """Update error tracking flags (not display)"""
+    errors = self.game.get_errors()
+    for row in range(9):
+        for col in range(9):
+            cell = self.grid.cells[row][col]
+            cell.is_error = (row, col) in errors
+            # DON'T set error_display_on here!
+```
+
+4. Change update_error_display() in UI:
+```python
+def update_error_display(self):
+    """Update error visibility based on show_errors state"""
+    for row in range(9):
+        for col in range(9):
+            cell = self.grid.cells[row][col]
+            if self.game.show_errors:
+                cell.error_display_on = cell.is_error
+            else:
+                cell.error_display_on = False
+            cell.update()
+```
+
+5. Remove set_highlight(error=...) calls:
+   - Don't use set_highlight for errors anymore
+   - Keep it for candidate/singleton/bold only
+
+
+COMPLETE CELL DISPLAY PRIORITY:
+================================
+
+paintEvent() should check in this order:
+
+1. error_display_on → RED (highest priority)
+2. is_singleton → DARK GREEN
+3. is_candidate → LIGHT GREEN  
+4. is_initial → GREY
+5. else → WHITE (normal)
+
+This way errors always show on top when enabled.
+
+
+TESTING AFTER FIX:
+==================
+
+□ Place wrong number
+□ is_error flag = True (tracking)
+□ error_display_on = False (not showing)
+□ Cell is WHITE (normal)
+□ Check "Show Errors"
+□ error_display_on = True (now showing)
+□ Cell is RED
+□ Uncheck "Show Errors"
+□ error_display_on = False (hidden)
+□ Cell is WHITE again
+□ is_error still True (tracking preserved)
+
+
+SUMMARY:
+========
+
+The fix is simple:
+  1. Add error_display_on flag (controls visibility)
+  2. Keep is_error flag (tracking only)
+  3. paintEvent uses error_display_on
+  4. update_error_display() sets error_display_on based on show_errors checkbox
+  5. Never call set_highlight(error=...) anymore
+
+This completely separates tracking from display!

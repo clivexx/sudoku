@@ -1,0 +1,65 @@
+[getting_started]
+Look for cells where only one number can go (naked singles) or numbers that can only go in one place in a row, column, or box (hidden singles). These are the foundation of all Sudoku solving.
+
+[mid_game]
+As the puzzle progresses, you may need more advanced techniques like pairs, triples, or pointing patterns. Use the Get Hint button if you're stuck to discover what technique applies.
+
+[end_game]
+You're close to finishing! Look carefully for any remaining singles. If you're stuck, there may be a subtle pattern you've missed.
+
+[hidden_single]
+A Hidden Single occurs when a number can only go in one cell within a row, column, or box, even though that cell might have other candidates. The number is "hidden" among other possibilities.
+
+[naked_single]
+A Naked Single is a cell with only one possible candidate. Since no other number can go there, this candidate must be the solution for that cell.
+
+[naked_pair]
+A Naked Pair is two cells in the same house (row, column, or box) that contain only the same two candidates. These two numbers must go in these two cells, so they can be eliminated from other cells in that house.
+
+[naked_triple]
+A Naked Triple is three cells in the same house containing only three candidates between them. These candidates can be eliminated from other cells in that house.
+
+[naked_quad]
+A Naked Quad is four cells in the same house containing only four candidates between them. These candidates can be eliminated from other cells in that house.
+
+[hidden_pair]
+A Hidden Pair is two candidates that appear only in the same two cells within a house. Other candidates in those two cells can be eliminated.
+
+[hidden_triple]
+A Hidden Triple is three candidates that appear only in the same three cells within a house. Other candidates in those three cells can be eliminated.
+
+[hidden_quad]
+A Hidden Quad is four candidates that appear only in the same four cells within a house. Other candidates in those four cells can be eliminated.
+
+[pointing_pair]
+A Pointing Pair (or Triple) occurs when a candidate in a box is restricted to a single row or column. That candidate can be eliminated from other cells in that row or column outside the box.
+
+[box_line_reduction]
+Box/Line Reduction is the opposite of Pointing Pairs. When a candidate in a row or column is restricted to a single box, it can be eliminated from other cells in that box.
+
+[x_wing]
+An X-Wing occurs when a candidate appears in exactly two cells in each of two different rows, and these cells are in the same two columns (forming a rectangle). The candidate can be eliminated from other cells in those columns. The same applies with rows and columns swapped.
+
+[swordfish]
+A Swordfish is like an X-Wing but with three rows and three columns. When a candidate appears in 2-3 cells per row, and all those cells fall within the same three columns, the candidate can be eliminated from other cells in those columns.
+
+[jellyfish]
+A Jellyfish extends the pattern to four rows and four columns. It's rare but powerful when it appears.
+
+[unique_rectangle]
+A Unique Rectangle uses the fact that a valid Sudoku has exactly one solution. If four cells form a rectangle (two rows x two columns) and all four share the same two candidates {a,b}, the puzzle would have two solutions - which is impossible. So at least one cell must be forced away from {a,b}.
+
+Type 1: Three cells have only {a,b}. The fourth cell has {a,b} plus extra candidates. Since those three cells lock in the deadly pattern, the fourth cell must use one of its extra candidates - so a and b can both be eliminated from it.
+
+Type 2: Two cells have only {a,b} (the floor). The other two cells each have {a,b,x} where x is the same extra candidate. To avoid the deadly pattern, x must go in one of those two cells. So x can be eliminated from any cell that sees both of them.
+
+Type 4: Two floor cells {a,b}, two roof cells {a,b,+extras}. In the house shared by the roof cells, if one of the values (say a) can only go in those two roof cells, then one roof cell must be a. This prevents both roof cells from ever being b, so b can be eliminated from both roof cells.
+
+[xy_wing]
+An XY-Wing involves three cells forming a bent chain. A pivot cell with candidates XY sees two wing cells: one with XZ and one with YZ. Any cell that sees both wing cells cannot contain Z.
+
+[simple_coloring]
+Simple Coloring tracks a single candidate through conjugate pairs (cells where the candidate appears exactly twice in a house). By alternating colors, contradictions or eliminations can be found.
+
+[forcing_chains]
+Forcing Chains follow the implications of placing a candidate in a cell. If both possibilities (placing it or not placing it) lead to the same conclusion, that conclusion must be true.

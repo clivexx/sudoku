@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sudoku Trainer</title>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        /**
+         * SUDOKU TRAINER APPLICATION
+         * 
+         * A comprehensive Sudoku training application designed to help players learn
+         * solving techniques rather than just solve puzzles.
+         * 
+         * KEY FEATURES:
+         * 
+         * 1. PUZZLE GENERATION
+         *    - Generates valid Sudoku puzzles with unique solutions
+         *    - Hard difficulty level (55 cells removed)
+         *    - Uses backtracking algorithm for solution generation
+         * 
+         * 2. DUAL NOTE SYSTEM
+         *    - Manual Notes: Player-entered pencil marks
+         *    - Auto Notes: Automatically calculated possible values
+         *    - Auto mode clears manual notes and maintains auto notes based on board state
+         * 
+         * 3. INTELLIGENT HINT SYSTEM
+         *    - Detects Sudoku solving techniques in order of complexity:
+         *      a) Naked Singles - cells with only one possible value
+         *      b) Hidden Singles - numbers that can only go in one cell (row/col/box)
+         *      c) Naked Pairs - two cells with same two candidates
+         *    - Two-step hints: text description first, then optional highlighting
+         *    - Next Hint button to cycle through available hints
+         * 
+         * 4. COMPLETE HISTORY TRACKING
+         *    - Records every move (numbers, notes, clears)
+         *    - Full undo capability
+         *    - Move counter
+         * 
+         * 5. ERROR DETECTION
+         *    - Instant Errors: Real-time highlighting of mistakes
+         *    - Check Errors: Manual verification button
+         *    - Red highlighting for incorrect values
+         * 
+         * 6. NUMBER SELECTION WORKFLOW
+         *    - Select number first, then click cells (reverse of traditional)
+         *    - Bold display of selected number on grid
+         *    - Green shading for valid placement cells
+         *    - Yellow shading for manually-removed auto notes
+         *    - Counter showing remaining instances of each number
+         * 
+         * 7. GAME STATE MANAGEMENT
+         *    - Save/Load bookmark feature
+         *    - Timer tracking
+         *    - Hint usage counter
+         *    - Move counter
+         * 
+         * DATA STRUCTURES:
+         * 
+         * - board: 9x9 array of current cell values (0 = empty)
+         * - solution: 9x9 array of correct solution
+         * - initialBoard: 9x9 array of starting puzzle (immutable during game)
+         * - manualNotes: Object mapping "row-col" to Set of numbers (player notes)
+         * - autoNotes: Object mapping "row-col" to Set of numbers (calculated notes)
+         * - history: Array of game states for undo functionality
+         * - hintHighlight: Object describing which cells to highlight for current hint
+         * 
+         * GAME MODES:
+         * 
+         * - Number Mode: Click cells to place selected number
+         * - Notes Mode: Click cells to toggle selected number in notes
+         * - Auto Notes ON: Manual notes disabled, auto-calculated notes maintained
+         * - Auto Notes OFF: Manual notes enabled, no auto calculation
+         */
+        
+        const { useState, useEffect } = React;
+        
+        const SudokuGame = () => {
+          // ============================================================================
+          // STATE MANAGEMENT
+          // ============================================================================
+          
+          // Core game state
+          const [board, setBoard] = useState([]);                    // Current board state
+          const [solution, setSolution] = useState([]);              // Correct solution
+          const [initialBoard, setInitialBoard] = useState([]);      // Starting puzzle
+          
+          // Notes system (dual: manual and auto)
+          const [manualNotes, setManualNotes] = useState({});        // Player-entered notes
+          const [autoNotes, setAutoNotes] = useState({});            // Auto-calculated notes
+          const [autoNotesEnabled, setAutoNotesEnabled] = useState(false);
+          
+          // UI state
+          const [selectedNumber, setSelectedNumber] = useState(null); // Currently selected number
+          const [inputMode, setInputMode] = useState('number');       // 'number' or 'notes'
+          const [showSuccess, setShowSuccess] = useState(false);
+          
+          // Hint system
+          const [hintMessage, setHintMessage] = useState('');
+          const [hintHighlight, setHintHighlight] = useState(null);
+          const [hintCount, setHintCount] = useState(0);
+          
+          // Game management
+          const [bookmark, setBookmark] = useState(null);
+          const [timer, setTimer] = useState(0);
+          const [timerRunning, setTimerRunning] = useState(false);
+          const [history, setHistory] = useState([]);                // Undo history
+          const [moveCount, setMoveCount] = useState(0);
+          
+          // Error display
+          const [showErrors, setShowErrors] = useState(false);
+          const [instantErrors, setInstantErrors] = useState(false);
+
+          // ============================================================================
+          // TIMER MANAGEMENT
+          // ============================================================================
+          
+          useEffect(() => {
+            let interval;
+            if (timerRunning) {
+              interval = setInterval(() => {
+                setTimer(t => t + 1);
+              }, 1000);
+            }
+            return () => clearInterval(interval);
+          }, [timerRunning]);
+
+          const formatTime = (seconds) => {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+          };
+
+          // ============================================================================
+          // PUZZLE GENERATION
+          // ============================================================================
+          
+          /**
+           * Generates a valid, complete Sudoku solution using backtracking
+           * @returns {number[][]} 9x9 grid with valid Sudoku solution
+           */
+          const generateSolution = () => {
+            const grid = Array(9).fill(null).map(() => Array(9).fill(0));
+            
+            // Check if placing num at (row, col) is valid
+            const isValid = (grid, row, col, num) => {
+              // Check row and column
+              for (let x = 0; x < 9; x++) {
+                if (grid[row][x] === num || grid[x][col] === num) return false;
+              }
+              // Check 3x3 box
+              const startRow = Math.floor(row / 3) * 3;
+              const startCol = Math.floor(col / 3) * 3;
+              for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                  if (grid[startRow + i][startCol + j] === num) return false;
+                }
+              }
+              return true;
+            };
+
+            // Recursive backtracking solver
+            const solve = (grid) => {
+              for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                  if (grid[row][col] === 0) {
+                    // Try numbers in random order for variety
+                    const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
+                    for (let num of numbers) {
+                      if (isValid(grid, row, col, num)) {
+                        grid[row][col] = num;
+                        if (solve(grid)) return true;
+                        grid[row][col] = 0; // Backtrack
+                      }
+                    }
+                    return false;
+                  }
+                }
+              }
+              return true; // All cells filled
+            };
+
+            solve(grid);
+            return grid;
+          };
+
+          /**
+           * Creates a puzzle by removing numbers from a complete solution
+           * @param {number[][]} solution - Complete Sudoku solution
+           * @returns {number[][]} Puzzle with 55 cells removed (hard difficulty)
+           */
+          const createPuzzle = (solution) => {
+            const puzzle = solution.map(row => [...row]);
+            let removed = 0;
+            const cellsToRemove = 55; // Hard difficulty
+            
+            while (removed < cellsToRemove) {
+              const row = Math.floor(Math.random() * 9);
+              const col = Math.floor(Math.random() * 9);
+              if (puzzle[row][col] !== 0) {
+                puzzle[row][col] = 0;
+                removed++;
+              }
+            }
+            
+            return puzzle;
+          };
+
+          /**
+           * Initialize a new game
+           */
+          const newGame = () => {
+            const sol = generateSolution();
+            const puzzle = createPuzzle(sol);
+            setSolution(sol);
+            setBoard(puzzle.map(row => [...row]));
+            setInitialBoard(puzzle.map(row => [...row]));
+            setSelectedNumber(null);
+            setManualNotes({});
+            setAutoNotes({});
+            setAutoNotesEnabled(false);
+            setHintMessage('');
+            setHintHighlight(null);
+            setHintCount(0);
+            setShowSuccess(false);
+            setBookmark(null);
+            setTimer(0);
+            setTimerRunning(true);
+            setHistory([]);
+            setMoveCount(0);
+            setShowErrors(false);
+          };
+
+          useEffect(() => {
+            newGame();
+          }, []);
+
+          // ============================================================================
+          // HISTORY AND UNDO
+          // ============================================================================
+          
+          /**
+           * Save current state to history for undo functionality
+           * @param {string} action - Description of action being saved
+           */
+          const saveState = (action) => {
+            setHistory(prev => [...prev, {
+              board: board.map(row => [...row]),
+              manualNotes: JSON.parse(JSON.stringify(manualNotes, (k, v) => v instanceof Set ? Array.from(v) : v)),
+              autoNotes: JSON.parse(JSON.stringify(autoNotes, (k, v) => v instanceof Set ? Array.from(v) : v)),
+              action
+            }]);
+          };
+
+          /**
+           * Undo the last action
+           */
+          const undo = () => {
+            if (history.length === 0) return;
+            
+            const prevState = history[history.length - 1];
+            setBoard(prevState.board.map(row => [...row]));
+            
+            // Restore manual notes
+            const restoreManual = {};
+            for (const [key, value] of Object.entries(prevState.manualNotes)) {
+              restoreManual[key] = new Set(value);
+            }
+            setManualNotes(restoreManual);
+            
+            // Restore auto notes
+            const restoreAuto = {};
+            for (const [key, value] of Object.entries(prevState.autoNotes)) {
+              restoreAuto[key] = new Set(value);
+            }
+            setAutoNotes(restoreAuto);
+            
+            setHistory(prev => prev.slice(0, -1));
+            setMoveCount(prev => prev - 1);
+          };
+
+          // ============================================================================
+          // CELL INTERACTION
+          // ============================================================================
+          
+          /**
+           * Handle clicking on a cell
+           * @param {number} row - Row index (0-8)
+           * @param {number} col - Column index (0-8)
+           */
+          const handleCellClick = (row, col) => {
+            // Can't modify initial cells
+            if (initialBoard[row][col] !== 0) return;
+            // Need a number selected
+            if (selectedNumber === null) return;
+
+            if (inputMode === 'number') {
+              // NUMBER MODE: Place or clear number
+              saveState(selectedNumber === 0 ? 'clear' : 'number');
+              
+              const newBoard = board.map(r => [...r]);
+              const oldValue = newBoard[row][col];
+              newBoard[row][col] = selectedNumber === 0 ? 0 : selectedNumber;
+              setBoard(newBoard);
+
+              // Clear manual notes when placing number
+              const newManualNotes = { ...manualNotes };
+              delete newManualNotes[`${row}-${col}`];
+              setManualNotes(newManualNotes);
+
+              // Update auto notes if enabled
+              if (autoNotesEnabled && selectedNumber !== 0) {
+                updateAutoNotesAfterMove(newBoard, row, col, selectedNumber);
+              } else if (autoNotesEnabled && selectedNumber === 0 && oldValue !== 0) {
+                // Restore auto notes when clearing
+                recalculateAutoNotes(newBoard);
+              }
+
+              setMoveCount(prev => prev + 1);
+
+              // Check for puzzle completion
+              if (selectedNumber !== 0) {
+                const isComplete = newBoard.every((row, i) => 
+                  row.every((cell, j) => cell === solution[i][j])
+                );
+                if (isComplete) {
+                  setShowSuccess(true);
+                  setTimerRunning(false);
+                }
+              }
+            } else {
+              // NOTES MODE: Toggle notes
+              if (selectedNumber === 0) {
+                // Clear all notes from cell
+                saveState('clear notes');
+                const key = `${row}-${col}`;
+                const newManualNotes = { ...manualNotes };
+                delete newManualNotes[key];
+                setManualNotes(newManualNotes);
+                setMoveCount(prev => prev + 1);
+              } else {
+                // Toggle specific note
+                saveState('note');
+                const key = `${row}-${col}`;
+                const currentNotes = manualNotes[key] || new Set();
+                const newManualNotes = { ...manualNotes };
+                
+                if (currentNotes.has(selectedNumber)) {
+                  currentNotes.delete(selectedNumber);
+                } else {
+                  currentNotes.add(selectedNumber);
+                }
+                
+                if (currentNotes.size > 0) {
+                  newManualNotes[key] = currentNotes;
+                } else {
+                  delete newManualNotes[key];
+                }
+                
+                setManualNotes(newManualNotes);
+                setMoveCount(prev => prev + 1);
+              }
+            }
+          };
+
+          // ============================================================================
+          // VALIDATION HELPERS
+          // ============================================================================
+          
+          /**
+           * Check if a number can be placed at a position on current board
+           */
+          const canPlaceNumber = (row, col, num) => {
+            if (board[row][col] !== 0) return false;
+            if (initialBoard[row][col] !== 0) return false;
+
+            // Check row
+            for (let x = 0; x < 9; x++) {
+              if (board[row][x] === num) return false;
+            }
+
+            // Check column
+            for (let x = 0; x < 9; x++) {
+              if (board[x][col] === num) return false;
+            }
+
+            // Check 3x3 box
+            const startRow = Math.floor(row / 3) * 3;
+            const startCol = Math.floor(col / 3) * 3;
+            for (let i = 0; i < 3; i++) {
+              for (let j = 0; j < 3; j++) {
+                if (board[startRow + i][startCol + j] === num) return false;
+              }
+            }
+
+            return true;
+          };
+
+          /**
+           * Get all possible numbers for a cell
+           */
+          const getPossibleNumbers = (row, col) => {
+            const possible = [];
+            for (let num = 1; num <= 9; num++) {
+              if (canPlaceNumber(row, col, num)) {
+                possible.push(num);
+              }
+            }
+            return possible;
+          };
+
+          /**
+           * Check if number can be placed (for any board state)
+           */
+          const canPlaceNumberForBoard = (currentBoard, row, col, num) => {
+            if (currentBoard[row][col] !== 0) return false;
+            if (initialBoard[row][col] !== 0) return false;
+
+            for (let x = 0; x < 9; x++) {
+              if (currentBoard[row][x] === num) return false;
+            }
+
+            for (let x = 0; x < 9; x++) {
+              if (currentBoard[x][col] === num) return false;
+            }
+
+            const startRow = Math.floor(row / 3) * 3;
+            const startCol = Math.floor(col / 3) * 3;
+            for (let i = 0; i < 3; i++) {
+              for (let j = 0; j < 3; j++) {
+                if (currentBoard[startRow + i][startCol + j] === num) return false;
+              }
+            }
+
+            return true;
+          };
+
+          // ============================================================================
+          // AUTO NOTES SYSTEM
+          // ============================================================================
+          
+          /**
+           * Recalculate all auto notes based on current board state
+           */
+          const recalculateAutoNotes = (currentBoard) => {
+            const newAutoNotes = {};
+            for (let row = 0; row < 9; row++) {
+              for (let col = 0; col < 9; col++) {
+                if (currentBoard[row][col] === 0 && initialBoard[row][col] === 0) {
+                  const possible = [];
+                  for (let num = 1; num <= 9; num++) {
+                    if (canPlaceNumberForBoard(currentBoard, row, col, num)) {
+                      possible.push(num);
+                    }
+                  }
+                  if (possible.length > 0) {
+                    newAutoNotes[`${row}-${col}`] = new Set(possible);
+                  }
+                }
+              }
+            }
+            setAutoNotes(newAutoNotes);
+          };
+
+          /**
+           * Update auto notes after a number is placed
+           * Removes the placed number from all affected cells (same row/col/box)
+           */
+          const updateAutoNotesAfterMove = (newBoard, filledRow, filledCol, num) => {
+            const newAutoNotes = { ...autoNotes };
+            
+            // Remove from same row
+            for (let col = 0; col < 9; col++) {
+              const key = `${filledRow}-${col}`;
+              if (newAutoNotes[key]) {
+                newAutoNotes[key].delete(num);
+                if (newAutoNotes[key].size === 0) delete newAutoNotes[key];
+              }
+            }
+            
+            // Remove from same column
+            for (let row = 0; row < 9; row++) {
+              const key = `${row}-${filledCol}`;
+              if (newAutoNotes[key]) {
+                newAutoNotes[key].delete(num);
+                if (newAutoNotes[key].size === 0) delete newAutoNotes[key];
+              }
+            }
+            
+            // Remove from same 3x3 box
+            const startRow = Math.floor(filledRow / 3) * 3;
+            const startCol = Math.floor(filledCol / 3) * 3;
+            for (let i = 0; i < 3; i++) {
+              for (let j = 0; j < 3; j++) {
+                const key = `${startRow + i}-${startCol + j}`;
+                if (newAutoNotes[key]) {
+                  newAutoNotes[key].delete(num);
+                  if (newAutoNotes[key].size === 0) delete newAutoNotes[key];
+                }
+              }
+            }
+            
+            // Remove from filled cell
+            delete newAutoNotes[`${filledRow}-${filledCol}`];
+            setAutoNotes(newAutoNotes);
+          };
+
+          /**
+           * Toggle auto notes mode
+           * When enabled: clears manual notes and calculates auto notes
+           * When disabled: clears auto notes
+           */
+          const toggleAutoNotes = () => {
+            if (!autoNotesEnabled) {
+              setManualNotes({});
+              recalculateAutoNotes(board);
+              setAutoNotesEnabled(true);
+            } else {
+              setAutoNotes({});
+              setAutoNotesEnabled(false);
+            }
+          };
+
+          // ============================================================================
+          // BOOKMARK SYSTEM
+          // ============================================================================
+          
+          const saveBookmark = () => {
+            setBookmark({
+              board: board.map(row => [...row]),
+              manualNotes: JSON.parse(JSON.stringify(manualNotes, (k, v) => v instanceof Set ? Array.from(v) : v)),
+              autoNotes: JSON.parse(JSON.stringify(autoNotes, (k, v) => v instanceof Set ? Array.from(v) : v)),
+              autoNotesEnabled
+            });
+          };
+
+          const loadBookmark = () => {
+            if (bookmark) {
+              setBoard(bookmark.board.map(row => [...row]));
+              
+              const restoreManual = {};
+              for (const [key, value] of Object.entries(bookmark.manualNotes)) {
+                restoreManual[key] = new Set(value);
+              }
+              setManualNotes(restoreManual);
+              
+              const restoreAuto = {};
+              for (const [key, value] of Object.entries(bookmark.autoNotes)) {
+                restoreAuto[key] = new Set(value);
+              }
+              setAutoNotes(restoreAuto);
+              
+              setAutoNotesEnabled(bookmark.autoNotesEnabled);
+            }
+          };
+
+          // ============================================================================
+          // HINT SYSTEM
+          // ============================================================================
+          
+          /**
+           * Get next hint and increment counter
+           */
+          const getNextHint = () => {
+            if (!hintMessage) {
+              getHint();
+              setHintCount(prev => prev + 1);
+            } else {
+              setHintMessage('');
+              setHintHighlight(null);
+              getHint();
+              setHintCount(prev => prev + 1);
+            }
+          };
+
+          /**
+           * Detect Sudoku solving techniques and provide hints
+           * Checks in order: Naked Singles → Hidden Singles → Naked Pairs
+           */
+          const getHint = () => {
+            const currentBoard = board;
+            
+            // 1. NAKED SINGLES: Cell has only one possible value
+            for (let row = 0; row < 9; row++) {
+              for (let col = 0; col < 9; col++) {
+                if (currentBoard[row][col] === 0 && initialBoard[row][col] === 0) {
+                  const possible = [];
+                  for (let num = 1; num <= 9; num++) {
+                    if (canPlaceNumberForBoard(currentBoard, row, col, num)) {
+                      possible.push(num);
+                    }
+                  }
+                  if (possible.length === 1) {
+                    setHintMessage('💡 Naked Single: There is a cell that can only contain one possible number.');
+                    setHintHighlight({ type: 'naked_single', row, col, number: possible[0], visible: false });
+                    return;
+                  }
+                }
+              }
+            }
+
+            // 2. HIDDEN SINGLES IN ROWS: Number can only go in one cell in row
+            for (let row = 0; row < 9; row++) {
+              for (let num = 1; num <= 9; num++) {
+                let possibleCols = [];
+                for (let col = 0; col < 9; col++) {
+                  if (canPlaceNumberForBoard(currentBoard, row, col, num)) {
+                    possibleCols.push(col);
+                  }
+                }
+                if (possibleCols.length === 1) {
+                  setHintMessage('💡 Hidden Single: A number can only go in one cell within a row.');
+                  setHintHighlight({ type: 'hidden_single', row, col: possibleCols[0], number: num, visible: false });
+                  return;
+                }
+              }
+            }
+
+            // 3. HIDDEN SINGLES IN COLUMNS
+            for (let col = 0; col < 9; col++) {
+              for (let num = 1; num <= 9; num++) {
+                let possibleRows = [];
+                for (let row = 0; row < 9; row++) {
+                  if (canPlaceNumberForBoard(currentBoard, row, col, num)) {
+                    possibleRows.push(row);
+                  }
+                }
+                if (possibleRows.length === 1) {
+                  setHintMessage('💡 Hidden Single: A number can only go in one cell within a column.');
+                  setHintHighlight({ type: 'hidden_single', row: possibleRows[0], col, number: num, visible: false });
+                  return;
+                }
+              }
+            }
+
+            // 4. HIDDEN SINGLES IN BOXES
+            for (let boxRow = 0; boxRow < 3; boxRow++) {
+              for (let boxCol = 0; boxCol < 3; boxCol++) {
+                for (let num = 1; num <= 9; num++) {
+                  let possibleCells = [];
+                  for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                      const row = boxRow * 3 + i;
+                      const col = boxCol * 3 + j;
+                      if (canPlaceNumberForBoard(currentBoard, row, col, num)) {
+                        possibleCells.push([row, col]);
+                      }
+                    }
+                  }
+                  if (possibleCells.length === 1) {
+                    setHintMessage('💡 Hidden Single: A number can only go in one cell within a 3×3 box.');
+                    setHintHighlight({ type: 'hidden_single', row: possibleCells[0][0], col: possibleCells[0][1], number: num, visible: false });
+                    return;
+                  }
+                }
+              }
+            }
+
+            // If no hints found
+            setHintMessage('🤔 No obvious patterns found. Try filling in more cells or using Auto Notes.');
+          };
+
+          /**
+           * Toggle visibility of hint highlighting
+           */
+          const highlightHint = () => {
+            if (hintHighlight) {
+              setHintHighlight({ ...hintHighlight, visible: !hintHighlight.visible });
+            }
+          };
+
+          /**
+           * Toggle error display
+           */
+          const checkErrors = () => {
+            setShowErrors(!showErrors);
+          };
+
+          // ============================================================================
+          // RENDERING HELPERS
+          // ============================================================================
+          
+          /**
+           * Check if a cell should be highlighted for current hint
+           */
+          const isCellHighlighted = (row, col) => {
+            if (!hintHighlight || hintHighlight.visible !== true) return false;
+            
+            if (hintHighlight.type === 'naked_single' || hintHighlight.type === 'hidden_single') {
+              return hintHighlight.row === row && hintHighlight.col === col;
+            }
+            
+            if (hintHighlight.type === 'naked_pair') {
+              return hintHighlight.cells.some(([r, c]) => r === row && c === col);
+            }
+            
+            return false;
+          };
+
+          /**
+           * Determine if cell is a valid candidate for selected number
+           * Returns: 'valid', 'manually-removed', or false
+           */
+          const isCellCandidate = (row, col) => {
+            if (selectedNumber === null || selectedNumber === 0) return false;
+            const canPlace = canPlaceNumber(row, col, selectedNumber);
+            
+            // Check if manually removed in auto notes mode
+            if (autoNotesEnabled && canPlace) {
+              const key = `${row}-${col}`;
+              const manual = manualNotes[key];
+              if (manual && !manual.has(selectedNumber)) {
+                return 'manually-removed';
+              }
+            }
+            
+            return canPlace ? 'valid' : false;
+          };
+
+          /**
+           * Check if number should be displayed in bold
+           */
+          const shouldBoldNumber = (cellValue) => {
+            if (selectedNumber === null || selectedNumber === 0) return false;
+            return cellValue === selectedNumber;
+          };
+
+          /**
+           * Check if cell contains an error
+           */
+          const hasError = (row, col) => {
+            if (!showErrors && !instantErrors) return false;
+            const cellValue = board[row][col];
+            if (cellValue === 0 || initialBoard[row][col] !== 0) return false;
+            return cellValue !== solution[row][col];
+          };
+
+          /**
+           * Count remaining instances of a number
+           */
+          const countRemaining = (num) => {
+            if (!board || board.length === 0) return 9;
+            let count = 9;
+            for (let row = 0; row < 9; row++) {
+              for (let col = 0; col < 9; col++) {
+                if (board[row] && (board[row][col] === num || initialBoard[row][col] === num)) {
+                  count--;
+                }
+              }
+            }
+            return count;
+          };
+
+          /**
+           * Get notes for a cell (manual or auto depending on mode)
+           */
+          const getCellNotes = (row, col) => {
+            const key = `${row}-${col}`;
+            if (manualNotes[key]) return manualNotes[key];
+            if (autoNotesEnabled && autoNotes[key]) return autoNotes[key];
+            return null;
+          };
+
+          // ============================================================================
+          // ICON COMPONENTS
+          // ============================================================================
+          
+          const RefreshIcon = () => (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>
+          );
+
+          const LightbulbIcon = () => (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/>
+              <path d="M9 18h6"/>
+              <path d="M10 22h4"/>
+            </svg>
+          

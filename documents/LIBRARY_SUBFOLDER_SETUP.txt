@@ -1,0 +1,139 @@
+LIBRARY SUBFOLDER SETUP
+=======================
+
+✅ CHANGES MADE:
+----------------
+
+All puzzle library files now go in a "library/" subfolder for better organization.
+
+
+FILES UPDATED:
+==============
+
+1. shared/sudoku_constants.py
+   ✓ Updated all PUZZLE_FILES paths to include "library/"
+   ✓ Updated CUSTOM_PUZZLES_FILE path to include "library/"
+
+2. shared/sudoku_library.py
+   ✓ Added automatic directory creation in save_puzzle()
+   ✓ Added automatic directory creation in save_all()
+
+
+NEW FILE STRUCTURE:
+===================
+
+Before:
+  sudoku/
+  ├── run_sudoku_complete.py
+  ├── run_generator.py
+  ├── puzzles_easy.txt
+  ├── puzzles_medium.txt
+  ├── puzzles_hard.txt
+  ├── puzzles_custom.json
+  ├── player/
+  └── shared/
+
+After:
+  sudoku/
+  ├── run_sudoku_complete.py
+  ├── run_generator.py
+  ├── library/              ← NEW SUBFOLDER
+  │   ├── puzzles_beginner.txt
+  │   ├── puzzles_easy.txt
+  │   ├── puzzles_medium.txt
+  │   ├── puzzles_hard.txt
+  │   ├── puzzles_expert.txt
+  │   └── puzzles_custom.json
+  ├── player/
+  └── shared/
+
+
+MIGRATION STEPS:
+================
+
+Option 1: Fresh Start (Recommended)
+------------------------------------
+1. Download updated files
+2. Run the program
+3. Library folder will be created automatically
+4. Generate or add puzzles as normal
+
+Option 2: Migrate Existing Puzzles
+-----------------------------------
+1. Create "library" folder in your sudoku directory
+2. Move existing puzzle files:
+   - Move puzzles_easy.txt → library/puzzles_easy.txt
+   - Move puzzles_medium.txt → library/puzzles_medium.txt
+   - Move puzzles_hard.txt → library/puzzles_hard.txt
+   - Move puzzles_custom.json → library/puzzles_custom.json (if exists)
+3. Download updated files
+4. Run the program - your puzzles will be found
+
+
+AUTOMATIC DIRECTORY CREATION:
+==============================
+
+The code now automatically creates the "library/" directory when:
+  - Saving a generated puzzle
+  - Saving a custom puzzle
+  - First time running the generator
+
+You don't need to create it manually!
+
+
+WHAT GETS STORED IN library/:
+==============================
+
+Generated Puzzles:
+  - library/puzzles_beginner.txt
+  - library/puzzles_easy.txt
+  - library/puzzles_medium.txt
+  - library/puzzles_hard.txt
+  - library/puzzles_expert.txt
+
+Custom Puzzles:
+  - library/puzzles_custom.json
+
+All puzzle data is now organized in one place!
+
+
+BENEFITS:
+=========
+
+✓ Cleaner main directory
+✓ All puzzle data in one place
+✓ Easy to backup (just copy library/ folder)
+✓ Easy to share puzzles (send library/ folder)
+✓ Won't clutter main directory with many files
+✓ Professional organization
+
+
+TESTING CHECKLIST:
+==================
+
+□ Run program for first time
+□ library/ folder is created automatically
+□ Generate a puzzle
+□ Check library/puzzles_easy.txt exists
+□ Puzzle is saved correctly
+□ Load puzzle from library
+□ Puzzle loads correctly
+□ Create custom puzzle
+□ Check library/puzzles_custom.json exists
+
+
+NO BREAKING CHANGES:
+====================
+
+✓ If library/ doesn't exist, it's created
+✓ If puzzle files don't exist, they're created on first save
+✓ Everything works automatically
+✓ No manual setup required
+
+
+THAT'S IT!
+==========
+
+Just download the updated files and run.
+The library/ folder will be created automatically.
+All your puzzles will be organized in one place!

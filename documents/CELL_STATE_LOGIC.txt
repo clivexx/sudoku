@@ -1,0 +1,118 @@
+FIXES APPLIED - CELL STATE LOGIC
+=================================
+
+✅ FIXED ISSUES:
+----------------
+
+1. Mode Button Display
+   Before: "<u>Number</u> / <u>Note</u>" (confusing)
+   After:  "**Number** / Note" or "Number / **Note**" (clear which is active)
+
+2. Bold Numbers
+   Before: Numbers not bold when entered
+   After:  All instances of selected number shown LARGE and BOLD
+           Normal numbers: 24pt Bold
+           Selected numbers: 32pt Black (larger and bolder)
+
+3. Cell State Logic
+   Before: States were unclear and transitions broken
+   After:  5 clear states with proper transitions
+
+
+THE 5 CELL STATES:
+==================
+
+State 1: ORIGINAL NUMBER
+  - Grey background
+  - Cannot be altered
+  - Never has notes
+  Properties: is_initial=True, value≠0
+
+State 2: MANUALLY ENTERED NUMBER
+  - White background
+  - Can be cleared
+  - Displays LARGE and BOLD when matches selected number
+  Properties: is_initial=False, value≠0
+
+State 3: BLUE TRIANGLE (No notes)
+  - Number mode: Click cell → enter number → State 2
+  - Click triangle → State 4 (enable auto notes)
+  Properties: value=0, notes_enabled=False
+
+State 4: YELLOW TRIANGLE (Auto notes)
+  - Shows calculated candidates
+  - Number mode: Click cell → enter number → State 2
+  - Note mode: Edit candidate → State 5 (becomes manual)
+  - Click triangle → State 3 (disable notes)
+  Properties: value=0, notes_enabled=True, notes_mode='auto'
+
+State 5: GREEN TRIANGLE (Manual notes)
+  - Shows user-edited candidates
+  - Number mode: Click cell → enter number → State 2
+  - Note mode: Edit candidate → stays State 5
+  - Click triangle → State 4 (revert to auto)
+  Properties: value=0, notes_enabled=True, notes_mode='manual'
+
+
+STATE TRANSITIONS:
+==================
+
+Triangle Click Behavior:
+  State 3 (blue)   → Click triangle → State 4 (yellow, auto notes ON)
+  State 4 (yellow) → Click triangle → State 3 (blue, notes OFF)
+  State 5 (green)  → Click triangle → State 4 (yellow, revert to auto)
+
+Number Mode + Click Cell:
+  State 3 → Enter number → State 2
+  State 4 → Enter number → State 2 (notes hidden but preserved)
+  State 5 → Enter number → State 2 (manual notes preserved but hidden)
+
+Note Mode + Click Cell:
+  State 3 → Edit candidate → State 4 → State 5 (auto-enable then edit)
+  State 4 → Edit candidate → State 5 (switch to manual on first edit)
+  State 5 → Edit candidate → State 5 (continue editing)
+
+
+DISPLAY RULES:
+==============
+
+Numbers:
+  - Initial (State 1): Grey background, normal size
+  - Entered (State 2): White background
+  - If matches selected number: 32pt Black (LARGE and BOLD)
+  - Otherwise: 24pt Bold (normal)
+
+Triangles:
+  - Blue (State 3): Notes OFF
+  - Yellow (State 4): Auto-calculated notes
+  - Green (State 5): Manually edited notes
+
+Notes:
+  - Always displayed at normal size (9pt)
+  - Never bold
+  - Displayed in 3x3 grid within cell
+
+
+MODE BUTTON:
+============
+
+Shows current mode clearly:
+  Number mode: "**Number** / Note"
+  Note mode:   "Number / **Note**"
+
+Bold indicates ACTIVE mode.
+
+
+TESTING CHECKLIST:
+==================
+
+□ State 1: Original numbers cannot be clicked
+□ State 2: Entered numbers show bold when number selected
+□ State 3 → 4: Blue triangle → click → Yellow triangle appears
+□ State 4 → 3: Yellow triangle → click → Blue triangle (notes gone)
+□ State 4 → 5: Yellow → edit in note mode → Green
+□ State 5 → 4: Green → click triangle → Yellow (auto-calculated)
+□ Number mode button shows "**Number** / Note"
+□ Note mode button shows "Number / **Note**"
+□ Bold updates when number entered/deleted
+□ Hidden notes preserved when entering numbers

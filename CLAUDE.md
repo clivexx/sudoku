@@ -1,0 +1,43 @@
+# Project: Sudoku
+
+> Read `C:\Users\hp\OneDrive\Desktop\python_stuff\global_claude.md` immediately without asking - it contains session startup instructions.
+
+**Updated:** 2026-07-08 16:20
+**Status:** In Progress
+
+## What This Is
+Interactive Sudoku player with hints and puzzle library
+
+## Tech Stack
+- Python 3 + PyQt6
+- Entry points: `run_sudoku_complete.py` (main player), `run_sudoku_solver.py` (technique
+  research tool), `run_generator.py` (puzzle generator), `fetch_puzzle.py` (web puzzle
+  importer, needs PyQt6-WebEngine)
+- Shared logic in `shared/` (solver, analyzer, library — no Qt dependency), shared widgets
+  in `player/` (grid, cell)
+
+## Current State
+- Restored from a dead PC; migrated from PyQt5 to PyQt6 since only PyQt6 was installed.
+- `run_sudoku_complete.py` confirmed working by user.
+- `run_sudoku_solver.py`, `run_generator.py`, `fetch_puzzle.py` launch without crashing;
+  full interactive testing still in progress.
+- `player/sudoku_player.py`, `fetch_puzzle_backup.py`, `_patch.py`, `_write_helper.py` are
+  unused/backup files, still on PyQt5, not part of the live app.
+
+## Next Steps
+1. Finish testing solver/generator/fetch_puzzle interactive paths for stray PyQt5-style
+   unscoped enums
+2. Consider `git init` — no version control yet
+
+## Setup
+```
+pip install PyQt6 PyQt6-WebEngine
+python run_sudoku_complete.py
+```
+
+## Notes
+- This app is PyQt6, not PyQt5. All enum access must be fully qualified
+  (`Qt.AlignmentFlag.AlignCenter`, `Qt.GlobalColor.black`, `QFont.Weight.Bold`, etc.) —
+  PyQt6 dropped the unscoped shortcuts PyQt5 allowed via sip. If you hit
+  `AttributeError: type object 'X' has no attribute 'Y'` on a Qt class, that's almost
+  certainly the cause.
