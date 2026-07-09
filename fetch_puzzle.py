@@ -28,10 +28,7 @@ from sudoku_library import CustomPuzzleLibrary
 
 
 FAVORITES = [
-    ("NYT Easy",   "https://www.nytimes.com/puzzles/sudoku/easy"),
-    ("NYT Medium", "https://www.nytimes.com/puzzles/sudoku/medium"),
-    ("NYT Hard",   "https://www.nytimes.com/puzzles/sudoku/hard"),
-    ("Guardian",   "https://www.theguardian.com/lifeandstyle/series/sudoku"),
+    ("NYT Sudoku", "https://www.nytimes.com/puzzles/sudoku"),
 ]
 
 DIFFICULTY_OPTIONS = ["Easy", "Medium", "Hard", "Expert"]
