@@ -1,7 +1,7 @@
 ﻿"""
 Module: fetch_puzzle.py
 Created: 2026-03-21
-Purpose: Browser-based puzzle fetcher for NYT and Guardian sudoku
+Purpose: Browser-based puzzle fetcher for NYT sudoku
 Status: needs testing
 Dependencies: PyQt5, PyQtWebEngine, shared/sudoku_library.py
 See also: run_sudoku_complete.py
@@ -9,7 +9,6 @@ See also: run_sudoku_complete.py
 
 import sys
 import json
-import re
 import subprocess
 from pathlib import Path as _Path
 
@@ -35,85 +34,9 @@ DIFFICULTY_OPTIONS = ["Easy", "Medium", "Hard", "Expert"]
 
 NYT_JS = "JSON.stringify(window.gameData || null)"
 
-GUARDIAN_JS = r"""
-(function() {
-    var result = {debug: [], data: null};
-    result.debug.push("URL: " + window.location.href);
-
-    // 1. Check for iframes - Guardian interactive puzzles often use interactive.guim.co.uk
-    var iframes = document.querySelectorAll("iframe");
-    result.debug.push("Iframes found: " + iframes.length);
-    for (var fi = 0; fi < iframes.length; fi++) {
-        result.debug.push("  iframe[" + fi + "] src: " + (iframes[fi].src || iframes[fi].getAttribute("data-src") || "(no src)"));
-    }
-
-    // 2. Dump window.guardian.config.page keys (Guardian DCR passes all page data here)
-    if (window.guardian && window.guardian.config && window.guardian.config.page) {
-        var page = window.guardian.config.page;
-        result.debug.push("guardian.config.page keys: " + Object.keys(page).join(", "));
-        // Look for puzzle/sudoku related keys
-        var pageStr = JSON.stringify(page);
-        var sudokuIdx = pageStr.toLowerCase().indexOf("sudoku");
-        if (sudokuIdx >= 0) {
-            result.debug.push("'sudoku' found in page at idx " + sudokuIdx + ": " + pageStr.substring(Math.max(0,sudokuIdx-20), sudokuIdx+200));
-        }
-        var puzzleIdx = pageStr.toLowerCase().indexOf("puzzle");
-        if (puzzleIdx >= 0) {
-            result.debug.push("'puzzle' found in page at idx " + puzzleIdx + ": " + pageStr.substring(Math.max(0,puzzleIdx-20), puzzleIdx+200));
-        }
-    }
-
-    // 3. Check common React/Redux global state vars
-    var globals = ["__PRELOADED_STATE__", "__REDUX_STATE__", "__NEXT_DATA__", "CAPI_DATA", "__guardian__", "DOTCOM_RENDERING"];
-    for (var gi = 0; gi < globals.length; gi++) {
-        if (window[globals[gi]]) {
-            var s = JSON.stringify(window[globals[gi]]);
-            result.debug.push("window." + globals[gi] + " found, length: " + s.length + ", starts: " + s.substring(0, 200));
-        }
-    }
-
-    // 4. Search ALL globals for anything containing 81-element arrays of small integers (0-9)
-    var globalKeys = Object.keys(window);
-    result.debug.push("Scanning " + globalKeys.length + " window globals for puzzle data...");
-    for (var k = 0; k < globalKeys.length; k++) {
-        try {
-            var val = window[globalKeys[k]];
-            if (val && typeof val === "object") {
-                var s = JSON.stringify(val);
-                if (s && s.length > 100 && s.length < 2000) {
-                    var nums = s.match(/\b[0-9]\b/g);
-                    if (nums && nums.length >= 81) {
-                        result.debug.push("Candidate global: window." + globalKeys[k] + " (" + s.length + " chars): " + s.substring(0, 300));
-                    }
-                }
-            }
-        } catch(e) {}
-    }
-
-    // 5. Guardian-specific DOM selectors
-    var selectors = [
-        "[data-gu-name]", "[data-component*=sudoku]", "[data-component*=puzzle]",
-        "[id*=sudoku]", "[id*=puzzle]", "[class*=sudoku]",
-        ".crossword__grid", ".sudoku", ".puzzle",
-        "[data-interactive]", "figure[data-interactive]"
-    ];
-    for (var si = 0; si < selectors.length; si++) {
-        var els = document.querySelectorAll(selectors[si]);
-        if (els.length > 0) {
-            result.debug.push("Selector '" + selectors[si] + "': " + els.length + " els, first outerHTML: " + els[0].outerHTML.substring(0, 300));
-        }
-    }
-
-    result.debug.push("--- end ---");
-    return JSON.stringify(result);
-})()
-"""
-
 def detect_site(url: str) -> str | None:
     if "nytimes.com/puzzles/sudoku" in url:
         return "nyt"
-    if "theguardian.com" in url and "sudoku" in url:
-        return "guardian"
     return None
 
 
@@ -133,31 +56,6 @@ def extract_nyt(data: dict, url: str = "") -> tuple[str, str, str]:
             title = f"NYT {key.title()} - {print_date}" if print_date else f"NYT {key.title()}"
             return puzzle_str, difficulty_map[key], title
     raise ValueError("Could not find puzzle data in NYT gameData")
-
-
-def extract_guardian(data, url: str) -> tuple[str, str, str]:
-    difficulty = "Medium"
-    puzzle_number = ""
-    match = re.search(r"sudoku-(\d+)-?(easy|medium|hard|difficult)?", url, re.IGNORECASE)
-    if match:
-        puzzle_number = match.group(1)
-        diff_str = (match.group(2) or "").lower()
-        difficulty_map = {"easy": "Easy", "medium": "Medium", "hard": "Hard", "difficult": "Hard"}
-        difficulty = difficulty_map.get(diff_str, "Medium")
-    puzzle = None
-    if isinstance(data, list) and len(data) == 81:
-        puzzle = data
-    elif isinstance(data, dict):
-        for key in ("puzzle", "grid", "cells", "data"):
-            v = data.get(key)
-            if isinstance(v, list) and len(v) == 81:
-                puzzle = v
-                break
-    if puzzle is None:
-        raise ValueError("Could not find 81-cell array in Guardian data")
-    puzzle_str = "".join(str(n) for n in puzzle)
-    title = f"Guardian {difficulty} #{puzzle_number}" if puzzle_number else f"Guardian {difficulty}"
-    return puzzle_str, difficulty, title
 
 
 def launch_player(puzzle_name: str):
@@ -348,35 +246,21 @@ class FetchPuzzleWindow(QMainWindow):
         if site == "nyt":
             print("[extract] Running NYT JS...")
             self.browser.page().runJavaScript(
-                NYT_JS, lambda r: self._on_js_result(r, url, "nyt")
-            )
-        elif site == "guardian":
-            print("[extract] Running Guardian JS...")
-            self.browser.page().runJavaScript(
-                GUARDIAN_JS, lambda r: self._on_js_result(r, url, "guardian")
+                NYT_JS, lambda r: self._on_js_result(r, url)
             )
         else:
             print("[extract] Unknown site, cannot extract")
             self.statusBar().showMessage("Unknown site - cannot extract from this page")
 
-    def _on_js_result(self, result, url: str, site: str):
-        print(f"[js_result] site={site}, result type={type(result).__name__}")
+    def _on_js_result(self, result, url: str):
+        print(f"[js_result] result type={type(result).__name__}")
         if result is None:
             print("[js_result] result is None")
             self.statusBar().showMessage("No puzzle data found - navigate to a specific puzzle page")
             return
         try:
             data = json.loads(result) if isinstance(result, str) else result
-            if site == "guardian":
-                if isinstance(data, dict) and "debug" in data:
-                    for line in data.get("debug", []):
-                        print(f"[guardian] {line}")
-                    data = data.get("data")
-                    print(f"[guardian] data type: {type(data).__name__}, value: {str(data)[:200]}")
-            if site == "nyt":
-                puzzle_str, difficulty, title = extract_nyt(data, url)
-            else:
-                puzzle_str, difficulty, title = extract_guardian(data, url)
+            puzzle_str, difficulty, title = extract_nyt(data, url)
             self._show_save_dialog(puzzle_str, title, difficulty)
         except Exception as e:
             print(f"[js_result] Exception: {e}")

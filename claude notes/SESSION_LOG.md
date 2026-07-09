@@ -27,3 +27,35 @@ launch without crashing; user was mid-testing these when session ended.
 - Finish exercising solver/generator/fetch_puzzle dialogs — any interactive code path not
   yet clicked could still have an unqualified PyQt5-style enum lurking.
 - No git repo yet in this project — consider `git init` if version history is wanted.
+
+---
+
+## 2026-07-09 - Fix NYT puzzle fetch (cookie popup) and push first commit
+
+**Files modified:**
+- `fetch_puzzle.py` - `FAVORITES` list now points at the NYT sudoku chooser page instead of
+  direct `/easy`/`/medium`/`/hard` deep links; dropped the abandoned Guardian favorite
+  (working)
+
+**Context:**
+- User reported the fetcher couldn't find puzzles on NYT — direct difficulty links loaded
+  a cookie-consent overlay that blocked `window.gameData` from populating before
+  extraction ran, so `Extract Puzzle` failed. Root cause confirmed interactively: dismissing
+  the popup let extraction succeed.
+- Landing on the general chooser page (`https://www.nytimes.com/puzzles/sudoku`) lets the
+  user click through to a difficulty via NYT's normal flow, avoiding the stuck state.
+- Also noticed (not a bug): `QWebEngineView` sometimes doesn't repaint the loaded page
+  until the pane receives a click — a known Chromium/Qt compositing quirk on Windows, not a
+  loading failure. Confirmed via temporary debug prints that the page and extraction both
+  succeed even when the pane looks blank; the prints were removed afterward.
+- Guardian extraction code (`GUARDIAN_JS`, `extract_guardian`, `detect_site` branch) is now
+  unused dead code left in place — not removed this session, out of scope.
+
+**Status:** Working. Committed (`a1106e8`) and pushed to `origin/main`
+(`https://github.com/clivexx/sudoku.git`) — first push since the repo was restored.
+
+**Next steps:**
+- Finish exercising solver/generator dialogs for lingering PyQt5-style enum issues
+  (carried over from last session).
+- Consider removing the now-dead Guardian extraction code from `fetch_puzzle.py` if Guardian
+  support stays abandoned.
