@@ -1559,7 +1559,7 @@ Puzzle library and solving techniques</p>
     
     def toggle_show_errors_checkbox(self, state):
         """Toggle show errors from checkbox"""
-        self.game.show_errors = (state == Qt.CheckState.Checked)
+        self.game.show_errors = (Qt.CheckState(state) == Qt.CheckState.Checked)
         self.update_error_display()
     
     def toggle_shade_candidates(self):
@@ -1680,9 +1680,9 @@ Puzzle library and solving techniques</p>
         key = event.key()
         if Qt.Key.Key_1 <= key <= Qt.Key.Key_9:
             num = key - Qt.Key.Key_0
-            self.select_number(num)
+            self.select_number_button(num)
         elif key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace, Qt.Key.Key_0):
-            self.select_number(0)
+            self.select_number_button(0)
 
 
 def main():
